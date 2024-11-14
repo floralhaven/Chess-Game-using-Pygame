@@ -1,86 +1,176 @@
 import pygame
 import sys
+import random
 
 pygame.init()
 
-#Constants
-WIDHT, HEIGHT = 800,800
-SQUARE_SIZE = WIDHT//8
+# Constants
+WIDTH, HEIGHT = 800, 800
+SQUARE_SIZE = WIDTH // 8
 
-#colors
-WHITE =(255,255,255)
-BLACK = (0,0,0)
-BROWN = (139,69,19)
-YELLOW = (255,255,0)
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+BROWN = (139, 69, 19)
+YELLOW = (255, 255, 0)
+GRAY = (169, 169, 169)
+GREEN = (0, 255, 0)  # Highlight for valid moves
 
-#create the screen
+# Create the screen
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Chess Game")
 
-screen = pygame.display.set_mode((WIDHT,HEIGHT))
-pygame.display.set_caption("Chess Game") 
-
-#Chess piece class
-
+# Chess piece class
 class ChessPiece:
-    def __init__(self,color,type,image):
-        self.color=color
+    def __init__(self, color, type, image):
+        self.color = color
         self.type = type
         self.image = pygame.image.load(image)
-        self.image = pygame.transform.scale(self.image, (SQUARE_SIZE,SQUARE_SIZE))
+        self.image = pygame.transform.scale(self.image, (SQUARE_SIZE, SQUARE_SIZE))
         self.has_moved = False
 
-#Initialize the board
-
+# Initialize the board
 board = [[None for _ in range(8)] for _ in range(8)]
-
-#Current Player
-
 current_player = 'white'
-
-#selected piece
 selected_piece = None
 selected_pos = None
+game_over = False
 
-def init_board():
-    #Pawns
+# Function to initialize Chess960 back rank
+def init_chess960_backrank():
+    pieces = [None] * 8
+    bishops = ['bishop', 'bishop']
+    light_squares = [1, 3, 5, 7]
+    dark_squares = [0, 2, 4, 6]
+    
+    bishops_position = random.sample(light_squares, 1) + random.sample(dark_squares, 1)
+    pieces[bishops_position[0]] = bishops[0]
+    pieces[bishops_position[1]] = bishops[1]
+    
+    rook_positions = [i for i in range(8) if pieces[i] != 'rook' and pieces[i] != 'bishop']
+    random.shuffle(rook_positions)
+    rook_left, rook_right = sorted(rook_positions[:2])
+    pieces[rook_left] = 'rook'
+    pieces[rook_right] = 'rook'
+    king_position = random.randint(rook_left + 1, rook_right - 1)
+    pieces[king_position] = 'king'
+    
+    remaining_positions = [i for i in range(8) if pieces[i] is None]
+    remaining_pieces = ['queen', 'knight', 'knight']
+    random.shuffle(remaining_positions)
+    for pos, piece in zip(remaining_positions, remaining_pieces):
+        pieces[pos] = piece
+
+    return pieces
+
+def init_chess960_board():
+    # Place pawns
     for col in range(8):
-        board[1][col] = ChessPiece ('black','pawn','images/black_pawn.png')
-        board[6][col] = ChessPiece ('white','pawn','images/white_pawn.png')
-#Rooks
-    board[0][0] = board[0][7] = ChessPiece('black','rook','images/black_rook.png')
-    board[7][0] = board[7][7] = ChessPiece('white', 'rook','images/white_rook.png')
-# Knights
+        board[1][col] = ChessPiece('black', 'pawn', 'images/black_pawn.png')
+        board[6][col] = ChessPiece('white', 'pawn', 'images/white_pawn.png')
+    
+    # Generate back rank for Chess960
+    black_backrank = init_chess960_backrank()
+    white_backrank = black_backrank[:]  # Mirror for white, same configuration
+    
+    # Place pieces on back rank based on Chess960 configuration
+    for col, piece_type in enumerate(black_backrank):
+        board[0][col] = ChessPiece('black', piece_type, f'images/black_{piece_type}.png')
+        board[7][col] = ChessPiece('white', piece_type, f'images/white_{piece_type}.png')
+
+# Function to initialize the original chess board
+def init_original_board():
+    # Pawns
+    for col in range(8):
+        board[1][col] = ChessPiece('black', 'pawn', 'images/black_pawn.png')
+        board[6][col] = ChessPiece('white', 'pawn', 'images/white_pawn.png')
+
+    # Rooks
+    board[0][0] = board[0][7] = ChessPiece('black', 'rook', 'images/black_rook.png')
+    board[7][0] = board[7][7] = ChessPiece('white', 'rook', 'images/white_rook.png')
+
+    # Knights
     board[0][1] = board[0][6] = ChessPiece('black', 'knight', 'images/black_knight.png')
     board[7][1] = board[7][6] = ChessPiece('white', 'knight', 'images/white_knight.png')
 
-# Bishops
+    # Bishops
     board[0][2] = board[0][5] = ChessPiece('black', 'bishop', 'images/black_bishop.png')
     board[7][2] = board[7][5] = ChessPiece('white', 'bishop', 'images/white_bishop.png')
 
-# Queens
+    # Queens
     board[0][3] = ChessPiece('black', 'queen', 'images/black_queen.png')
     board[7][3] = ChessPiece('white', 'queen', 'images/white_queen.png')
 
-# Kings
+    # Kings
     board[0][4] = ChessPiece('black', 'king', 'images/black_king.png')
     board[7][4] = ChessPiece('white', 'king', 'images/white_king.png')
 
-#Function to draw the board
+# Function to check if the game is over by checkmate or stalemate
+def is_game_over():
+    white_king = any(piece.type == 'king' and piece.color == 'white' for row in board for piece in row if piece)
+    black_king = any(piece.type == 'king' and piece.color == 'black' for row in board for piece in row if piece)
+    if not white_king:
+        return 'black'  # Black wins if the white king is missing
+    elif not black_king:
+        return 'white'  # White wins if the black king is missing
+    return None  # Game is not over
+
+
+# Start Menu function
+def start_menu():
+    font = pygame.font.SysFont('Arial', 36)
+    title = font.render('Select Game Mode', True, WHITE)
+    chess960_button = pygame.Rect(WIDTH // 2.05 - 100, HEIGHT // 2.1 - 100, 220, 100)
+    original_button = pygame.Rect(WIDTH // 2.05 - 100, HEIGHT // 2.1 + 50, 220, 100)
+
+    while True:
+        screen.fill(BLACK)
+        screen.blit(title, (WIDTH // 2 - title.get_width() // 2, HEIGHT // 4))
+        
+        pygame.draw.rect(screen, GRAY, chess960_button)
+        pygame.draw.rect(screen, GRAY, original_button)
+
+        chess960_text = font.render('Chess960', True, WHITE)
+        original_text = font.render('Original Chess', True, WHITE)
+
+        screen.blit(chess960_text, (WIDTH // 2 - chess960_text.get_width() // 2, HEIGHT // 2 - 90))
+        screen.blit(original_text, (WIDTH // 2 - original_text.get_width() // 2, HEIGHT // 2 + 60))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if chess960_button.collidepoint(event.pos):
+                    return 'Chess960'
+                if original_button.collidepoint(event.pos):
+                    return 'Original'
+
+# Function to draw the board
 def draw_board():
     for row in range(8):
         for col in range(8):
-            color = WHITE if (row + col) % 2 ==0 else BROWN
-            pygame.draw.rect(screen,color,(col* SQUARE_SIZE ,row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+            color = WHITE if (row + col) % 2 == 0 else BROWN
+            pygame.draw.rect(screen, color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
     
     if selected_pos:
-        pygame.draw.rect(screen,YELLOW,(selected_pos[1]*SQUARE_SIZE,selected_pos[0]*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE))
+        pygame.draw.rect(screen, YELLOW, (selected_pos[1] * SQUARE_SIZE, selected_pos[0] * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
-#Function to draw the pieces
+# Function to draw the pieces
 def draw_piece():
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
             if piece:
-                screen.blit(piece.image,(col*SQUARE_SIZE, row*SQUARE_SIZE))
+                screen.blit(piece.image, (col * SQUARE_SIZE, row * SQUARE_SIZE))
+
+# Function to highlight valid moves
+def highlight_valid_moves(valid_moves):
+    for (r, c) in valid_moves:
+        pygame.draw.rect(screen, GREEN, (c * SQUARE_SIZE, r * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
 # Function to get valid moves for a piece
 def get_valid_moves(piece, row, col):
@@ -153,99 +243,76 @@ def get_valid_moves(piece, row, col):
 
     return moves
 
-
-#Function to check if the king is in check
-
-def is_check(color):
-    king_pos = None
-    for r in range(8):
-        for c in range(8):
-            if board[r][c] and board[r][c].color == color and board[r][c]=='king':
-                king_pos = (r,c)
-                break
-            if king_pos:
-                break
-
-    for r in range(8):
-        for c in range(8):
-            piece = board[r][c]
-            if piece and piece.color != color:
-                if king_pos in get_valid_moves(piece,r,c):
-                    return True
-        
-
-    return False       
-
-#function to check for checkmate 
-def is_game_over():
-    for r in range(8):
-        for c in range(8):
-            piece = board[r][c]
-            if piece and piece.color == current_player:
-                valid_moves = get_valid_moves(piece,r,c)
-                for move in valid_moves:
-                    #Try the move
-                    temp = board[move[0]][move[1]]
-                    board[move[0]][move[1]] = piece
-                    board[r][c]= None
-                    check = is_check(current_player)
-                    #undo the move
-                    board[r][c]= piece
-                    board[move[0]][move[1]] =temp
-                    if not check:
-                        return False
-    return True
-
-# Function to handle mouse clicks
-def handle_click(pos):
-    global selected_piece, selected_pos, current_player
-    col = pos[0] // SQUARE_SIZE
-    row = pos[1] // SQUARE_SIZE
-
-    if selected_piece is None:
-        piece = board[row][col]
-        if piece and piece.color == current_player:
-            selected_piece = piece
-            selected_pos = (row, col)
-    else:
-        if (row, col) in get_valid_moves(selected_piece, selected_pos[0], selected_pos[1]):
-            # Move the piece
-            board[row][col] = selected_piece
-            board[selected_pos[0]][selected_pos[1]] = None
-            selected_piece.has_moved = True
-
-            # Check for pawn promotion
-            if selected_piece.type == 'pawn' and (row == 0 or row == 7):
-                board[row][col] = ChessPiece(selected_piece.color, 'queen', f'images/{selected_piece.color}_queen.png')
-
-            # Switch turns
-            current_player = 'black' if current_player == 'white' else 'white'
-
-            # Check for game over
-            if is_game_over():
-                if is_check(current_player):
-                    print(f"Checkmate! {current_player.capitalize()} loses.")
-                else:
-                    print("Stalemate!")
-
-        selected_piece = None
-        selected_pos = None
-
-#Main game loop
+# Main function to run the game
 def main():
-    init_board()
+    global selected_piece, selected_pos, current_player, game_over
+    game_mode = start_menu()  # Get game mode from the start menu
+
+    # Initialize the board based on selected game mode
+    if game_mode == 'Chess960':
+        init_chess960_board()
+    elif game_mode == 'Original':
+        init_original_board()
+
+    winning_player = None  # Track the winning player
 
     while True:
+        if game_over:
+            # Display the game-over screen
+            screen.fill(BLACK)
+            font = pygame.font.SysFont('Arial', 36)
+            if winning_player:
+                text = font.render(f'{winning_player.capitalize()} wins! Play again? (Y/N)', True, WHITE)
+            else:
+                text = font.render('Game Over! Play again? (Y/N)', True, WHITE)
+            screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+            pygame.display.flip()
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_y:
+                        main()  # Restart the game
+                    elif event.key == pygame.K_n:
+                        pygame.quit()
+                        sys.exit()
+            continue
+
+        # Event Handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                handle_click(pygame.mouse.get_pos())
+                col, row = event.pos[0] // SQUARE_SIZE, event.pos[1] // SQUARE_SIZE
+                piece = board[row][col]
+
+                if selected_pos:
+                    if (row, col) in get_valid_moves(selected_piece, selected_pos[0], selected_pos[1]):
+                        board[row][col] = selected_piece
+                        board[selected_pos[0]][selected_pos[1]] = None
+                        selected_piece.has_moved = True
+                        selected_pos = None
+                        current_player = 'black' if current_player == 'white' else 'white'
+                        
+                        # Check if the game is over after a move
+                        winning_player = is_game_over()
+                        game_over = winning_player is not None  # True if there's a winner
+                    else:
+                        selected_pos = None
+                elif piece and piece.color == current_player:
+                    selected_piece = piece
+                    selected_pos = (row, col)
+
+        # Drawing
         draw_board()
+        if selected_piece and selected_pos:
+            valid_moves = get_valid_moves(selected_piece, selected_pos[0], selected_pos[1])
+            highlight_valid_moves(valid_moves)
         draw_piece()
         pygame.display.flip()
-        
+
 if __name__ == "__main__":
     main()
-        

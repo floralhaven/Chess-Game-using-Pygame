@@ -249,9 +249,19 @@ def get_valid_moves(piece, row, col):
 
     return moves
 
+# Function to reset the game state
+def reset_game():
+    global board, current_player, selected_piece, selected_pos, game_over, winning_player
+    board = [[None for _ in range(8)] for _ in range(8)]  # Clear the board
+    current_player = 'white'
+    selected_piece = None
+    selected_pos = None
+    game_over = False
+    winning_player = None
+
 # Main function to run the game
 def main():
-    global selected_piece, selected_pos, current_player, game_over
+    global selected_piece, selected_pos, current_player, game_over, winning_player
     game_mode = start_menu()  # Get game mode from the start menu
 
     # Initialize the board based on selected game mode
@@ -259,8 +269,6 @@ def main():
         init_chess960_board()
     elif game_mode == 'Original':
         init_original_board()
-
-    winning_player = None  # Track the winning player
 
     while True:
         if game_over:
@@ -280,7 +288,8 @@ def main():
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_y:
-                        main()  # Restart the game
+                        reset_game()  # Reset the game state
+                        return main()  # Restart the game loop
                     elif event.key == pygame.K_n:
                         pygame.quit()
                         sys.exit()

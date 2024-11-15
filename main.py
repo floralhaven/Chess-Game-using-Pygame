@@ -39,29 +39,35 @@ game_over = False
 # Function to initialize Chess960 back rank
 def init_chess960_backrank():
     pieces = [None] * 8
-    bishops = ['bishop', 'bishop']
     light_squares = [1, 3, 5, 7]
     dark_squares = [0, 2, 4, 6]
     
-    bishops_position = random.sample(light_squares, 1) + random.sample(dark_squares, 1)
-    pieces[bishops_position[0]] = bishops[0]
-    pieces[bishops_position[1]] = bishops[1]
+    # Place bishops on light and dark squares
+    light_bishop_position = random.choice(light_squares)
+    dark_bishop_position = random.choice(dark_squares)
+    pieces[light_bishop_position] = 'bishop'
+    pieces[dark_bishop_position] = 'bishop'
     
-    rook_positions = [i for i in range(8) if pieces[i] != 'rook' and pieces[i] != 'bishop']
-    random.shuffle(rook_positions)
-    rook_left, rook_right = sorted(rook_positions[:2])
+    # Place rooks and king with guaranteed valid positions
+    remaining_positions = [i for i in range(8) if pieces[i] is None]
+    
+    # Set rooks on the first and last remaining positions, ensuring room for the king
+    rook_left, rook_right = remaining_positions[0], remaining_positions[-1]
     pieces[rook_left] = 'rook'
     pieces[rook_right] = 'rook'
-    king_position = random.randint(rook_left + 1, rook_right - 1)
+    
+    # Place the king between the two rooks
+    king_position = remaining_positions[1]
     pieces[king_position] = 'king'
     
+    # Assign the remaining pieces
     remaining_positions = [i for i in range(8) if pieces[i] is None]
     remaining_pieces = ['queen', 'knight', 'knight']
-    random.shuffle(remaining_positions)
     for pos, piece in zip(remaining_positions, remaining_pieces):
         pieces[pos] = piece
 
     return pieces
+
 
 def init_chess960_board():
     # Place pawns
